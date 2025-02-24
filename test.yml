@@ -1,0 +1,49 @@
+---
+- name: Check and Install Required Ansible Collections
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    required_collections:
+      - community.general
+      # - theforeman.foreman
+      - infra.osbuild
+
+  tasks:
+    - name: List all installed collections in JSON format
+      ansible.builtin.command: "ansible-galaxy collection list --format json"
+      register: collection_list
+      changed_when: false
+      ignore_errors: true
+
+    - name: Parse installed collections
+      ansible.builtin.set_fact:
+        installed_collections: "{{ collection_list.stdout | from_json | dict2items | map(attribute='key') | list }}"
+
+    - name: Determine missing collections
+      ansible.builtin.set_fact:
+        missing_collections: "{{ required_collections | difference(installed_collections) }}"
+
+    - name: Display missing collections
+      ansible.builtin.debug:
+        msg: >-
+          {%- if missing_collections | length == 0 -%}
+          ✅ All required collections are installed.
+          {%- else -%}
+          ❌ Missing collections: {{ missing_collections | join(', ') }}
+          {%- endif -%}
+
+    - name: Install missing collections
+      ansible.builtin.command:
+        cmd: "ansible-galaxy collection install {{ item }}"
+      loop: "{{ missing_collections }}"
+      when: missing_collections | length > 0
+      register: install_results
+      changed_when: "'was installed successfully' in install_results.stdout"
+      failed_when: install_results.rc != 0
+
+    - name: Display installation results
+      ansible.builtin.debug:
+        msg: "Installed collection: {{ item.item }} - Output: {{ item.stdout }}"
+      loop: "{{ install_results.results }}"
+      when: install_results is defined
