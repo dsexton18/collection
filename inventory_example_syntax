@@ -1,0 +1,107 @@
+---
+ANSIBLE_GALAXY_SERVER: 
+  foreman_galaxy:
+      url: urlhere
+
+---
+plugin: redhat.satellite.foreman
+want_params: true
+validate_certs: false  # Set to true if using a valid SSL cert
+want_facts: true       # Ensures Foreman facts are retrieved
+want_host_collections: true  # Retrieves host collections
+want_subnets: true  # Include subnet details for IP assignment
+want_ipv4: true  # Prioritize IPv4 addresses
+
+compose:
+  ansible_host: >
+    foreman_ip if foreman_ip else 
+    (foreman_fqdn if foreman_fqdn else 
+    (foreman_interfaces[0]['fqdn'] if foreman_interfaces and foreman_interfaces[0]['fqdn'] else ''))
+
+
+# plugin: redhat.satellite.foreman
+# compose:
+#   ansible_host: >
+#     foreman_fqdn if foreman_fqdn else
+#     (foreman_ip if foreman_ip else inventory_hostname)
+
+
+
+# compose:
+#   ansible_host: >
+#     foreman_ip if foreman_ip else foreman_fqdn
+
+
+#   ansible_host: >
+#     network::ipv4_address if network::ipv4_address else 
+#     (foreman_ip if foreman_ip else foreman_fqdn)
+
+  #ansible_host: foreman_ip  # Use IP address instead of hostname
+# plugin: redhat.satellite.foreman
+#   ansible_host: >
+#       foreman_ip if foreman_ip else foreman_fqdn
+# compose:
+#   ansible_host: >
+#     foreman_primary_ip if foreman_primary_ip else 
+#     (foreman_interfaces[0]['ip'] if foreman_interfaces and foreman_interfaces[0]['ip'] else foreman_fqdn)
+
+#ansible_host: "{{ foreman_ip }}"
+# want_hostcollections: true
+#plugin: redhat.satellite.foreman
+#plugin: redhat.satellite.foreman
+
+
+ Ansible inventory variable assignment using Jinja2 templating.
+Breakdown:
+
+    compose:
+        This is used in Ansible inventory plugins (like yaml, ini, or json) to dynamically set host variables based on other variables.
+
+    ansible_host:
+        This specifies the IP address or hostname that Ansible should use to connect to the target system.
+
+    > (Multi-line YAML operator)
+        Allows writing a multi-line string. However, in this case, it's a simple expression, so the > is unnecessary.
+
+    foreman_ip if foreman_ip else foreman_fqdn
+        This is a Python ternary conditional expression (if-else in one line).
+        It means:
+            If foreman_ip is defined and not empty, use it as ansible_host.
+            Otherwise, use foreman_fqdn.
+
+
+
+compose:
+  ansible_host: >
+    foreman_ip | default(foreman_fqdn, true)
+
+better
+
+    Uses Jinja2's default() filter
+        foreman_ip | default(foreman_fqdn, true)
+        If foreman_ip is undefined or empty, it falls back to foreman_fqdn.
+        The second argument (true) ensures None, empty strings, and undefined values are treated as "missing."
+
+    More readable and maintainable
+        Avoids using a direct Python ternary (if-else), making it more in line with Ansible best practices.
+
+    Handles edge cases better
+        If foreman_ip is None, an empty string, or even missing entirely, foreman_fqdn will still be used.
+
+
+
+compose:
+  ansible_host: >
+    foreman_ip | default(foreman_fqdn, true) | default(foreman_interfaces[0]['fqdn'] if foreman_interfaces else '', true)
+    Uses Jinja2's default() filter instead of nested if-else, making it more readable.
+    Handles undefined or empty values properly
+        default(value, true) ensures None, empty strings, and undefined values are ignored.
+    Eliminates redundant checks
+        The if foreman_interfaces and foreman_interfaces[0]['fqdn'] check is replaced by default(), which already avoids errors when foreman_interfaces is None or empty.
+
+How It Works:
+
+    Try foreman_ip.
+    If foreman_ip is missing, None, or empty, use foreman_fqdn.
+    If foreman_fqdn is also missing, use foreman_interfaces[0]['fqdn'] (if foreman_interfaces exists and has at least one entry).
+    If all else fails, return an empty string ('').
