@@ -1,0 +1,42 @@
+---
+- name: Check installed Ansible collections against requirements.yml
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    requirements_file: "requirements.yml"
+
+  tasks:
+    - name: Read requirements.yml
+      ansible.builtin.slurp:
+        src: "{{ requirements_file }}"
+      register: req_content
+
+    - name: Parse required collections
+      ansible.builtin.set_fact:
+        required_collections: "{{ (req_content['content'] | b64decode | from_yaml).collections | map(attribute='name') | list }}"
+
+    - name: List all installed collections
+      ansible.builtin.command: "ansible-galaxy collection list"
+      register: collection_list
+      changed_when: false
+      ignore_errors: true
+
+    - name: Check if required collections are installed
+      ansible.builtin.shell: "ansible-galaxy collection list | grep -E '{{ item }}' || true"
+      register: collection_check
+      loop: "{{ required_collections }}"
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display results of collection checks
+      ansible.builtin.debug:
+        msg: >-
+          {%- if item.stdout != '' -%}
+          ✅ Collection '{{ item.item }}' is installed.
+          {%- else -%}
+          ❌ Collection '{{ item.item }}' is NOT installed.
+          {%- endif -%}
+      loop: "{{ collection_check.results }}"
+
+
