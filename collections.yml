@@ -1,0 +1,38 @@
+---
+- name: Check installed Ansible collections
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    required_collections:
+      - community.general
+      - theforeman.foreman
+      - infra.osbuild
+
+  tasks:
+    - name: List all installed collections
+      ansible.builtin.command: "ansible-galaxy collection list"
+      register: collection_list
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display installed collections
+      ansible.builtin.debug:
+        var: collection_list.stdout_lines
+
+    - name: Check for required collections
+      ansible.builtin.shell: "ansible-galaxy collection list | grep -E '{{ item }}' || true"
+      register: collection_check
+      loop: "{{ required_collections }}"
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display results of collection checks
+      ansible.builtin.debug:
+        msg: >-
+          {%- if item.stdout != '' -%}
+          ✅ Collection '{{ item.item }}' is installed.
+          {%- else -%}
+          ❌ Collection '{{ item.item }}' is NOT installed.
+          {%- endif -%}
+      loop: "{{ collection_check.results }}"
