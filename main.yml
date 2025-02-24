@@ -1,0 +1,39 @@
+---
+- name: Check installed Ansible collections
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: List all installed collections
+      ansible.builtin.command: "ansible-galaxy collection list"
+      register: collection_list
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display installed collections
+      ansible.builtin.debug:
+        var: collection_list.stdout_lines
+
+    - name: Check if specific collection (e.g., community.general) is installed
+      ansible.builtin.shell: "ansible-galaxy collection list | grep 'community.general' || true"
+      register: collection_check
+      changed_when: false
+      ignore_errors: true
+
+    - name: Display result of collection check
+      ansible.builtin.debug:
+        msg: >-
+          {%- if 'community.general' in collection_check.stdout -%}
+          ✅ The collection 'community.general' is installed.
+          {%- else -%}
+          ❌ The collection 'community.general' is NOT installed.
+          {%- endif -%}
+
+    - name: Show Ansible collection paths
+      ansible.builtin.command: "ansible-config dump | grep COLLECTIONS_PATHS"
+      register: collections_paths
+      changed_when: false
+
+    - name: Display collection paths
+      ansible.builtin.debug:
+        var: collections_paths.stdout
