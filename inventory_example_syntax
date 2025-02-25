@@ -88,6 +88,11 @@ better
     Handles edge cases better
         If foreman_ip is None, an empty string, or even missing entirely, foreman_fqdn will still be used.
 
+---
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
 
 
 compose:
