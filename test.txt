@@ -1,0 +1,47 @@
+Since the Windows user has a UID/GID assigned, ensure that Windows is properly mapping it to the Linux user.
+
+    Run the following on the Windows NFS Server to check mapping settings:
+
+    nfsadmin server list maps
+
+    If mapping is not properly configured, you may need to manually create an etc/passwd and etc/group file on Windows under C:\Windows\System32\drivers\etc\ (if using User Name Mapping).
+
+2. Check UID/GID on Linux
+
+On the Linux host, check the local user's UID and GID:
+
+id <linux-user>
+
+Make sure these match the values assigned to the Windows user. If they don’t, you may need to manually change the Linux UID/GID to match:
+
+usermod -u <matching-uid> <linux-user>
+groupmod -g <matching-gid> <linux-group>
+
+3. Mount the NFS Share with Correct Options
+
+When mounting the NFS share from Linux, ensure you pass the correct UID/GID if necessary:
+
+mount -t nfs -o vers=3,uid=<linux-uid>,gid=<linux-gid> windows-server:/nfs-share /mnt/nfs
+
+If the Windows NFS server allows anonymous access, you may need to specify anonuid=<linux-uid> and anongid=<linux-gid>.
+4. Check NFS Permissions on Windows
+
+    On Windows, check the NFS export permissions:
+
+    showmount -e <windows-server>
+
+    Ensure the export allows read/write (rw) access for the Linux client's IP or user.
+
+5. Verify Ownership of Files on the NFS Share
+
+After mounting, create a test file:
+
+touch /mnt/nfs/testfile
+ls -l /mnt/nfs
+
+If the file is owned by nobody:nobody, the mapping might not be working correctly.
+Next Steps if Writing Fails
+
+    If mapping is broken, try using an anonuid and anongid that match the Windows user's UID/GID.
+    If permissions on the Windows share are incorrect, adjust the NFS export settings.
+    If authentication is required, switching to SMB/CIFS instead of NFS might be easier.
