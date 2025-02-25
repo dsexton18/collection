@@ -45,3 +45,138 @@ Next Steps if Writing Fails
     If mapping is broken, try using an anonuid and anongid that match the Windows user's UID/GID.
     If permissions on the Windows share are incorrect, adjust the NFS export settings.
     If authentication is required, switching to SMB/CIFS instead of NFS might be easier.
+
+
+
+
+
+    Windows NFS Server must support Kerberos authentication (sec=krb5 or krb5i).
+    A valid Kerberos ticket for the AD user (kinit) on the Linux client.
+    Proper UID/GID mapping between the Linux user and Windows user.
+    NFSv4 must be used, as Kerberos authentication is not supported in NFSv3.
+
+2. Steps to Use kinit and Mount the NFS Share
+Step 1: Install Required Packages on Linux
+
+Ensure that nfs-utils and krb5-workstation (or equivalent) are installed:
+
+sudo yum install -y nfs-utils krb5-workstation
+
+Step 2: Configure Kerberos
+
+Modify /etc/krb5.conf to include your AD domain:
+
+[libdefaults]
+    default_realm = EXAMPLE.COM
+    dns_lookup_kdc = true
+    dns_lookup_realm = false
+
+[realms]
+    EXAMPLE.COM = {
+        kdc = ad.example.com
+        admin_server = ad.example.com
+    }
+
+Replace EXAMPLE.COM with your AD domain and ad.example.com with your actual domain controller.
+Step 3: Get a Kerberos Ticket
+
+Run kinit as the AD user:
+
+kinit ad-user@example.com
+
+Verify the ticket:
+
+klist
+
+You should see a valid Kerberos ticket for the AD user.
+Step 4: Mount the NFS Share with Kerberos
+
+If Windows NFS is configured for Kerberos authentication (sec=krb5), mount the share with:
+
+sudo mount -t nfs4 -o sec=krb5,rw windows-server:/nfs-share /mnt/nfs
+
+If krb5 alone doesn’t work, try krb5i (integrity) or krb5p (privacy/encryption):
+
+sudo mount -t nfs4 -o sec=krb5i,rw windows-server:/nfs-share /mnt/nfs
+
+3. Troubleshooting
+
+    No Kerberos Ticket (Permission denied)
+        Run klist to check if your ticket is valid.
+        If missing, run kinit again.
+
+    NFS Mount Fails (No route to host or Permission denied)
+        Ensure that NFSv4 is enabled on Windows:
+
+Get-NfsServerConfiguration
+
+Verify Windows NFS supports Kerberos:
+
+Get-NfsShare | Select-Object -Property Name, Authentication
+
+Open necessary firewall ports:
+
+        Set-NetFirewallRule -Name "NFS-Server-TCP-In" -Enabled True
+
+    File Ownership Issues
+        Run ls -l /mnt/nfs to check ownership.
+        Ensure UID mapping between the Linux user and AD user is correct.
+
+4. Alternative: SMB with Kerberos
+
+If Kerberos authentication via NFS is problematic, you might find SMB with Kerberos easier to set up:
+
+sudo mount -t cifs //windows-server/share /mnt/share -o sec=krb5,username=ad-user,uid=$(id -u),gid=$(id -g)
+
+This allows using Kerberos authentication with CIFS/SMB, which is often better supported than Kerberos-based NFS on Windows.
+
+
+
+
+#!/bin/bash
+
+# Configuration - Update these values
+NFS_SERVER="windows-server.example.com"
+NFS_SHARE="/nfs-share"
+MOUNT_POINT="/mnt/nfs"
+AD_USER="ad-user@example.com"
+KERB_REALM="EXAMPLE.COM"
+
+# Ensure mount point exists
+if [ ! -d "$MOUNT_POINT" ]; then
+    echo "Creating mount point at $MOUNT_POINT..."
+    sudo mkdir -p "$MOUNT_POINT"
+fi
+
+# Prompt for AD password securely
+read -s -p "Enter password for $AD_USER: " AD_PASS
+echo
+
+# Request Kerberos Ticket
+echo "$AD_PASS" | kinit "$AD_USER"
+if [ $? -ne 0 ]; then
+    echo "Failed to get Kerberos ticket. Check your credentials."
+    exit 1
+fi
+
+# Verify Kerberos ticket
+klist | grep "$KERB_REALM" > /dev/null
+if [ $? -ne 0 ]; then
+    echo "Kerberos ticket not found. Authentication failed."
+    exit 1
+fi
+
+# Mount the NFS share with Kerberos authentication
+echo "Mounting NFS share..."
+sudo mount -t nfs4 -o sec=krb5,vers=4 "$NFS_SERVER:$NFS_SHARE" "$MOUNT_POINT"
+
+# Check if mount was successful
+if mount | grep -q "$MOUNT_POINT"; then
+    echo "NFS share mounted successfully at $MOUNT_POINT"
+else
+    echo "Failed to mount NFS share. Check server settings and permissions."
+    exit 1
+fi
+
+exit 0
+
