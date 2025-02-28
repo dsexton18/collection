@@ -1,0 +1,82 @@
+[customizations.openscap]
+profile_id = "xccdf_org.ssgproject.content_profile_stig"
+datastream = "/usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml"
+tailoring_file = "/path/to/your/stig-tailoring.xml"
+
+tig-tailoring.xml example
+
+<?xml version="1.0" encoding="UTF-8"?>
+<Tailoring xmlns="http://checklists.nist.gov/xccdf/1.2">
+    <id>stig-tailoring</id>
+    <status date="2024-02-1">draft</status>
+    <version>1.0</version>
+    <Profile id="xccdf_org.ssgproject.content_profile_stig">
+        <title>Customized STIG Profile</title>
+        <description>Customized STIG profile excluding certain rules</description>
+        <!-- Example: Exclude rule to remove nfs-utils -->
+        <select idref="xccdf_org.ssgproject.content_rule_package_nfs-utils_removed" selected="false"/>
+        <!-- Example: Exclude rule to disable root login -->
+        <select idref="xccdf_org.ssgproject.content_rule_sshd_disable_root_login" selected="false"/>
+    </Profile>
+</Tailoring>
+
+
+[customizations]
+hostname = "secured"
+users = [{ name = "admin", password = "password-hash", groups = ["wheel"] }]
+post_install_script = """
+#!/bin/bash
+set -e
+
+echo "Reinstalling nfs-utils..."
+dnf install -y nfs-utils
+
+echo "Allowing root login via SSH..."
+sed -i 's/^PermitRootLogin no/PermitRootLogin yes/' /etc/ssh/sshd_config
+systemctl restart sshd
+"""
+
+
+
+post_install_script = """
+#!/bin/bash
+set -e
+
+echo "Reinstalling nfs-utils..."
+dnf install -y nfs-utils
+
+echo "Allowing root login via SSH..."
+sed -i 's/^PermitRootLogin no/PermitRootLogin yes/' /etc/ssh/sshd_config
+systemctl restart sshd
+"""
+
+
+oscap info /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml | grep stig
+
+
+oscap xccdf list-rules --profile stig /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
+
+
+grep -E 'id="xccdf_org.ssgproject.content_rule' /usr/share/xml/scap/ssg/content/ssg-rhel9-xccdf.xml
+
+
+xmllint --noout tailoring.xml
+
+
+use this
+oscap xccdf eval --profile stig --results results.xml \
+    /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
+
+oscap xccdf export --xsl /usr/share/openscap/xsl/xccdf-to-text.xsl results.xml
+
+If you want a more structured list:
+
+oscap xccdf eval --profile stig --results results.xml \
+    /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml && \
+    oscap xccdf generate fix --fix-type ansible results.xml > stig-fixes.yml
+
+3. Grep the STIG Rules from Benchmark
+
+Another method is extracting rule IDs using grep:
+
+grep -oP '(?<=id="xccdf_org.ssgproject.content_rule_)[^"]+' /usr/share/xml/scap/ssg/cont
