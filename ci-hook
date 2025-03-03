@@ -1,0 +1,10 @@
+webhook_trigger:
+  script:
+    - |
+      curl -k -X POST \
+        -H "Content-Type: application/json" \
+        -H "X-Gitlab-Token: ${WEBHOOK_SECRET}" \
+        -d '{"timestamp": "'$(date +%s)'"}' \
+        "${AAP_WEBHOOK_URL}"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
